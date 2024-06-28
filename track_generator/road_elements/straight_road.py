@@ -5,10 +5,9 @@ import track_generator.config as config
 from track_generator.config import tile_size
 from .road_element import RoadElement
 from track_generator.connection_point import ConnectionPoint
-from operator import pos
-
 
 class StraightRoad(RoadElement):
+
     def __init__(self, midpoint=(tile_size / 2, tile_size / 2), direction=(1, 0)):
         super().__init__()
 
@@ -21,39 +20,26 @@ class StraightRoad(RoadElement):
         self.connection_points.append(point_b)
 
     def _border_intersection_from_point(self, position, direction):
-        # Distance to the border of the tile from the midpoint in the direction of the road element
-        distance_right = (tile_size - position[0]) / direction[0] if direction[0] != 0 else math.inf
-        distance_top = (tile_size - position[1]) / direction[1] if direction[1] != 0 else math.inf
-        distance_left = position[0] / -direction[0] if direction[0] != 0 else math.inf
-        distance_bottom = position[1] / -direction[1] if direction[1] != 0 else math.inf
+        point_is_within_tile = 0 <= position[0] <= tile_size and 0 <= position[1] <= tile_size
+        
+        def _distance_from_point_to_borders(pos, dir):      
+            distance_right = (tile_size - pos[0]) / dir[0] if dir[0] != 0 else math.inf
+            distance_top = -pos[1] / dir[1] if dir[1] != 0 else math.inf
+            distance_left = -pos[0] / dir[0] if dir[0] != 0 else math.inf
+            distance_bottom = (tile_size - pos[1]) / dir[1] if dir[1] != 0 else math.inf
+            return distance_right, distance_top, distance_left, distance_bottom
+            
+        distances = _distance_from_point_to_borders(position, direction) 
+        
+        distance_a = min(d for d in distances if d > 0)
+        if point_is_within_tile:            
+            distance_b = min(-d for d in distances if d <= 0)
+            index_b = distances.index(-distance_b)
+            
+            point_a = ConnectionPoint((position[0] + distance_a * direction[0], position[1] + distance_a * direction[1]), direction)
+            point_b = ConnectionPoint((position[0] - distance_b * direction[0], position[1] - distance_b * direction[1]), (-direction[0], -direction[1]))
+        
 
-        # Point on the border of the tile where the road element connects
-        min_distance = min(d for d in (distance_right, distance_top, distance_left, distance_bottom) if d > 0)
-
-        if min_distance == distance_right:
-            point_a = ConnectionPoint((tile_size, position[1] + min_distance * direction[1]), direction)
-        elif min_distance == distance_top:
-            point_a = ConnectionPoint((position[0] + min_distance * direction[0], tile_size), direction)
-        elif min_distance == distance_left:
-            point_a = ConnectionPoint((0, position[1] - min_distance * direction[1]), direction)
-        elif min_distance == distance_bottom:
-            point_a = ConnectionPoint((position[0] - min_distance * direction[0], 0), direction)
-        else:
-            raise ValueError("No valid connection point found")
-
-        # Point on the border of the tile where the road element connects on the opposite side
-        min_distance = min(d for d in (distance_right, distance_top, distance_left, distance_bottom) if d > 0)
-
-        if min_distance == distance_right:
-            point_b = ConnectionPoint((0, position[1] - min_distance * direction[1]), (-direction[0], -direction[1]))
-        elif min_distance == distance_top:
-            point_b = ConnectionPoint((position[0] - min_distance * direction[0], 0), (-direction[0], -direction[1]))
-        elif min_distance == distance_left:
-            point_b = ConnectionPoint((tile_size, position[1] + min_distance * direction[1]), (-direction[0], -direction[1]))    
-        elif min_distance == distance_bottom:
-            point_b = ConnectionPoint((position[0] + min_distance * direction[0], tile_size), (-direction[0], -direction[1]))
-        else:
-            raise ValueError("No valid connection point found")
         
         return point_a, point_b 
       
@@ -79,9 +65,7 @@ class StraightRoad(RoadElement):
         self.connection_points[1 - index].set_direction((-direction[0], -direction[1]))
 
         # Update midpoint based on new direction
-        self.guide_points[0] = ((self.connection_points[0].position[0] + self.connection_points[1].position[0]) / 2,
-                        (self.connection_points[0].position[1] + self.connection_points[1].position[1]) / 2)
-
+        self.guide_points[0] = ((self.connection_points[0].position[0] + self.connection_points[1].position[0]) / 2, (self.connection_points[0].position[1] + self.connection_points[1].position[1]) / 2)
         
     def render(self, surface):
         pygame.draw.line(surface, config.color_lane_marking, self.connection_points[0].position, self.connection_points[1].position, 2 * (config.lane_width + config.line_width))

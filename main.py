@@ -14,6 +14,7 @@ def main():
     angle = math.radians(20)
     initial_road = StraightRoad(direction=(math.cos(angle), math.sin(angle)))
     track_generator.track.add_tile(Tile(0, 0, initial_road))
+    track_generator.track.add_tile(Tile(1, 0, StraightRoad(direction=(1, 0))))
 
     while track_generator.running:
         track_generator.update()

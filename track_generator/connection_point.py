@@ -2,9 +2,9 @@ import track_generator.config as config
 
 class ConnectionPoint:
     def __init__(self, position, direction):
-        self._position = position
+        self._position = self._round_position(position)
         self._direction = direction
-        self.border = self._get_border(position, direction)
+        self.border = self._get_border(self.position, direction)
         
         self.is_highlighted = False
         self.is_dragging = False
@@ -20,6 +20,12 @@ class ConnectionPoint:
             return (0, 1)
         else:
             raise ValueError("Connection point is not on the border of the tile or direction is invalid", position, direction)
+    
+    # Round floating point errors close the the tile border
+    def _round_position(self, position):
+        return (round(position[0]), round(position[1]))
+                
+        
         
     @property
     def position(self):
@@ -30,7 +36,7 @@ class ConnectionPoint:
         return self._direction
         
     def set_position(self, position):
-        self._position = position
+        self._position = self._round_position(position)
         self.border = self._get_border(position, self.direction)
 
     def set_direction(self, direction):
