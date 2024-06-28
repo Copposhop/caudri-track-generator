@@ -40,6 +40,18 @@ class StraightRoad(RoadElement):
         self.guide_points[0].position = ((self.connection_points[0].position[0] + self.connection_points[1].position[0]) / 2, (self.connection_points[0].position[1] + self.connection_points[1].position[1]) / 2)
         self.guide_points[0].direction = direction
         
+    def update_guide_point(self, index, position, direction):
+        assert index == 0, "Index must be 0, there is only one guide point in a straight road."
+        
+        self.guide_points[0].position = position
+        self.guide_points[0].direction = direction
+        self.road_direction = direction
+        
+        # Update connection points based on new midpoint
+        point_a, point_b = self._border_intersection_from_point(position, direction)
+        self.connection_points[0] = point_a
+        self.connection_points[1] = point_b
+        
     def render(self, surface):
         # Road fully white
         pygame.draw.line(surface, config.color_lane_marking, self.connection_points[0].position, self.connection_points[1].position, 2 * (config.lane_width + config.line_width))

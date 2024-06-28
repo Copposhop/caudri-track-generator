@@ -104,7 +104,7 @@ class UserInterface:
                     break
             # Check if a guide point on the currently selected tile was clicked
             for gp_index, gp in enumerate(self.selected_tile.road_element.guide_points):
-                gp_position = (gp.position[0] * self.scale + self.offset[0], gp.position[1] * self.scale + self.offset[1])
+                gp_position = self._tile_position_to_screen_position(gp.position, self.selected_tile)
                 gp_radius = 2 * config.point_selection_radius * self.scale
                 if math.hypot(gp_position[0] - mouse_x, gp_position[1] - mouse_y) < gp_radius:
                     self.selected_point = gp
