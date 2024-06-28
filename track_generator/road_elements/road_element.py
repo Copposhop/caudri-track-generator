@@ -8,8 +8,8 @@ class RoadElement:
     def render(self, surface):
         raise NotImplementedError("This method should be overridden by subclasses")
 
-    def update_guide_points(self, index, position, direction):
+    def update_guide_point(self, index, position, direction):
         raise NotImplementedError("This method should be overridden by subclasses")
     
-    def update_connection_points(self, index, position, direction):
+    def update_connection_point(self, index, position, direction):
         raise NotImplementedError("This method should be overridden by subclasses")
