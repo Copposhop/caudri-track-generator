@@ -36,19 +36,43 @@ class StraightRoad(RoadElement):
         self.connection_points[index].direction = direction
         self.connection_points[1 - index].direction = (-direction[0], -direction[1])
 
-        # Update midpoint based on new direction
-        self.guide_points[0].position = ((self.connection_points[0].position[0] + self.connection_points[1].position[0]) / 2, (self.connection_points[0].position[1] + self.connection_points[1].position[1]) / 2)
+        # Update guide point based on new direction
+        guide_x = (self.connection_points[0].position[0] + self.connection_points[1].position[0]) / 2
+        guide_y = (self.connection_points[0].position[1] + self.connection_points[1].position[1]) / 2
+        self.guide_points[0].position = (guide_x, guide_y)
         self.guide_points[0].direction = direction
         
-    def update_guide_point(self, index, position, direction):
+    def update_guide_point(self, index, position, direction=None):
         assert index == 0, "Index must be 0, there is only one guide point in a straight road."
         
-        self.guide_points[0].position = position
-        self.guide_points[0].direction = direction
-        self.road_direction = direction
+        # Keep the current direction if none is provided
+        if direction is None:
+            direction = self.guide_points[0].direction
         
-        # Update connection points based on new midpoint
-        point_a, point_b = self._border_intersection_from_point(position, direction)
+        # Guide point distance from border must be < lane_width + line_width
+        min_distance = config.lane_width + config.line_width
+        
+        # If the guide point lies within tile_size - min_distance, update the guide point and connection points
+        if min_distance < position[0] < tile_size - min_distance and min_distance < position[1] < tile_size - min_distance: 
+            self.guide_points[0].position = position
+            self.guide_points[0].direction = direction
+            self.road_direction = direction
+        
+        # If the guide point lies outside of the tile, find a point on the minimum distance border
+        else:
+            tile_center = (tile_size / 2, tile_size / 2)
+            direction_from_center = self._norm_direction_from_points(tile_center, position)
+            distances = self._distance_from_point_to_borders(tile_center, direction_from_center, min_distance, tile_size - min_distance)
+            distance_to_closest_point = min(d for d in distances if d > 0)
+            
+            guide_point_x = tile_center[0] + distance_to_closest_point * direction_from_center[0]
+            guide_point_y = tile_center[1] + distance_to_closest_point * direction_from_center[1]
+            self.guide_points[0].position = (guide_point_x, guide_point_y)
+            self.guide_points[0].direction = direction
+            self.road_direction = direction
+            
+        # Update connection points based on new guide point
+        point_a, point_b = self._border_intersection_from_point(self.guide_points[0].position, self.guide_points[0].direction)
         self.connection_points[0] = point_a
         self.connection_points[1] = point_b
         
@@ -59,22 +83,27 @@ class StraightRoad(RoadElement):
         pygame.draw.line(surface, config.color_road, self.connection_points[0].position, self.connection_points[1].position, 2 * config.lane_width)
         # Draw inner lane
         pygame.draw.line(surface, config.color_lane_marking, self.connection_points[0].position, self.connection_points[1].position, config.line_width)
+        
+    def __repr__(self):
+        return f"Straight road with guide point at {self.guide_points[0].position} and direction {self.guide_points[0].direction}"
+    
+    # Distances from point to borders in the direction of the direction vector
+    # Borders are ordered right, top, left, bottom
+    # Positions of the border corners can be set 
+    def _distance_from_point_to_borders(self, position, direction, border_pos_a=0, border_pos_b=tile_size):
+        distance_right = (border_pos_b - position[0]) / direction[0] if direction[0] != 0 else math.inf
+        distance_top = (border_pos_a - position[1]) / direction[1] if direction[1] != 0 else math.inf
+        distance_left = (border_pos_a - position[0]) / direction[0] if direction[0] != 0 else math.inf
+        distance_bottom = (border_pos_b - position[1]) / direction[1] if direction[1] != 0 else math.inf
+        return distance_right, distance_top, distance_left, distance_bottom
+
 
     def _border_intersection_from_point(self, position, direction):
         point_is_within_tile = 0 <= position[0] <= tile_size and 0 <= position[1] <= tile_size
-        
-        # Distances from point to borders in the direction of the direction vector
-        # Borders are ordered right, top, left, bottom
-        def _distance_from_point_to_borders(pos, dir):      
-            distance_right = (tile_size - pos[0]) / dir[0] if dir[0] != 0 else math.inf
-            distance_top = -pos[1] / dir[1] if dir[1] != 0 else math.inf
-            distance_left = -pos[0] / dir[0] if dir[0] != 0 else math.inf
-            distance_bottom = (tile_size - pos[1]) / dir[1] if dir[1] != 0 else math.inf
-            return distance_right, distance_top, distance_left, distance_bottom
             
-        distances = _distance_from_point_to_borders(position, direction) 
+        distances = self._distance_from_point_to_borders(position, direction) 
         
-        # Point a is the first intersection point on any of the borders
+        # Point A is the first intersection of any of the borders if the point lies within the tile
         distance_a = min(d for d in distances if d > 0)
         if point_is_within_tile:            
             distance_b = min(-d for d in distances if d <= 0)

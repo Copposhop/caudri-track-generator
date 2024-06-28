@@ -141,7 +141,7 @@ class UserInterface:
                 self.selected_tile.road_element.update_connection_point(self.selected_point_index, position_on_tile, self.selected_point.direction)
             elif isinstance(self.selected_point, GuidePoint):
                 position_on_tile = self._screen_position_to_tile_position((mouse_x, mouse_y), self.selected_tile)
-                self.selected_tile.road_element.update_guide_point(self.selected_point_index, position_on_tile, self.selected_point.direction)
+                self.selected_tile.road_element.update_guide_point(self.selected_point_index, position_on_tile)
     
     def _click_tile(self, tile):
         # Toggle selection of tile
