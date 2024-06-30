@@ -20,21 +20,44 @@ class StraightRoad(RoadElement):
         self.connection_points.append(point_a)
         self.connection_points.append(point_b)
 
-    def update_connection_point(self, index, position, direction):
+    def update_connection_point(self, index, position, direction=None):
         assert index in (0, 1), "Index must be 0 or 1"
         
-        # Find the new connection point on the border of the tile
-        unchanged_point = self.connection_points[1 - index]
-        direction = self._norm_direction_from_points(unchanged_point.position, position)
-        new_point = self._border_intersection_from_point(unchanged_point.position, direction)[0]
+        # Fix the opposite connection point if no direction is provided
+        if direction is None:        
+            # Find the new connection point on the border of the tile
+            unchanged_point = self.connection_points[1 - index]
+            direction = self._norm_direction_from_points(unchanged_point.position, position)
+            new_point = self._border_intersection_from_point(unchanged_point.position, direction)[0]
         
-        # Update new connection point and directions
-        direction = self._norm_direction_from_points(unchanged_point.position, new_point.position)
-        self.direction = direction
+            # Update new connection point and directions
+            direction = self._norm_direction_from_points(unchanged_point.position, new_point.position)
+            self.road_direction = direction
 
-        self.connection_points[index].position = new_point.position
-        self.connection_points[index].direction = direction
-        self.connection_points[1 - index].direction = (-direction[0], -direction[1])
+            self.connection_points[index].position = new_point.position
+            self.connection_points[index].direction = direction
+            self.connection_points[1 - index].direction = (-direction[0], -direction[1])
+        
+        # Calculate the updated and opposite connection point based on the new direction
+        else:
+            print("\n", position, direction)
+            opposite_point, new_point = self._border_intersection_from_point(position, (-direction[0], -direction[1]))
+            
+            self.connection_points[index].position = new_point.position
+            self.connection_points[index].direction = direction
+            self.connection_points[1 - index].position = opposite_point.position
+            self.connection_points[1 - index].direction = (-direction[0], -direction[1])
+            
+            
+            # self.connection_points[index].position = position
+            # self.connection_points[index].direction = direction
+            
+            # self.road_direction = direction
+            
+            # opposite_point = self._border_intersection_from_point(position, direction)[0]
+            # self.connection_points[1 - index].position = opposite_point.position
+            # self.connection_points[1 - index].direction = (-direction[0], -direction[1])
+            
 
         # Update guide point based on new direction
         guide_x = (self.connection_points[0].position[0] + self.connection_points[1].position[0]) / 2
@@ -95,6 +118,7 @@ class StraightRoad(RoadElement):
         distance_top = (border_pos_a - position[1]) / direction[1] if direction[1] != 0 else math.inf
         distance_left = (border_pos_a - position[0]) / direction[0] if direction[0] != 0 else math.inf
         distance_bottom = (border_pos_b - position[1]) / direction[1] if direction[1] != 0 else math.inf
+        print(distance_right, distance_top, distance_left, distance_bottom)
         return distance_right, distance_top, distance_left, distance_bottom
 
 
@@ -104,14 +128,35 @@ class StraightRoad(RoadElement):
         distances = self._distance_from_point_to_borders(position, direction) 
         
         # Point A is the first intersection of any of the borders if the point lies within the tile
-        distance_a = min(d for d in distances if d > 0)
-        if point_is_within_tile:            
-            distance_b = min(-d for d in distances if d <= 0)
-            index_b = distances.index(-distance_b)
-            
-            point_a = ConnectionPoint((position[0] + distance_a * direction[0], position[1] + distance_a * direction[1]), direction)
-            point_b = ConnectionPoint((position[0] - distance_b * direction[0], position[1] - distance_b * direction[1]), (-direction[0], -direction[1]))
+        # Point B lies on the intersection in the opposite direction
+        if point_is_within_tile:         
+            distance_a = min(d for d in distances if d > 0)   
+            distance_b = -min(-d for d in distances if d <= 0)      
+
+        # Point A is the second intersection of any of the borders if the point lies outside the tile
+        # Point B is the first intersection 
+        else:
+            # direction = (-direction[0], -direction[1])
+            def intersects_tile_border(distance):
+                pos_x = position[0] + distance * direction[0]
+                pos_y = position[1] + distance * direction[1]
+                x_is_on_border = math.isclose(pos_x, 0, rel_tol=1e-6) or math.isclose(pos_x, tile_size, rel_tol=1e-6)
+                y_is_on_border = math.isclose(pos_y, 0, rel_tol=1e-6) or math.isclose(pos_y, tile_size, rel_tol=1e-6)
+                return x_is_on_border and y_is_on_border
+            try:
+                distance_b = min(d for d in distances if d > 0 and intersects_tile_border(d))
+                distance_a = min(d for d in distances if d > 0 and d != distance_b and intersects_tile_border(d))
+            except ValueError:
+                distance_a = math.inf
+                distance_b = math.inf
         
+        if distance_a == math.inf or distance_b == math.inf:
+            raise ValueError("No intersection with any of the tile borders", position, direction, distance_a, distance_b, distances)
+        
+        print(position, direction, distance_a, distance_b)
+        point_a = ConnectionPoint((position[0] + distance_a * direction[0], position[1] + distance_a * direction[1]), direction)
+        point_b = ConnectionPoint((position[0] + distance_b * direction[0], position[1] + distance_b * direction[1]), (-direction[0], -direction[1]))
+            
         return point_a, point_b 
       
     def _norm_direction_from_points(self, position_a, position_b):

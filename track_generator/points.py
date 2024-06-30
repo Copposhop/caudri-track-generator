@@ -41,8 +41,11 @@ class ConnectionPoint(Point):
 
     def __init__(self, position, direction):
         super().__init__(position)
+        try:
+            self.border = self._get_border(self.position, direction)
+        except ValueError as e:
+            raise e
         self._direction = direction
-        self.border = self._get_border(self._position, direction)
 
     def _get_border(self, position, direction):
         if position[0] == 0 and direction[0] < 0:
@@ -62,8 +65,12 @@ class ConnectionPoint(Point):
     
     @direction.setter
     def direction(self, direction):
-        self._direction = direction
-        self.border = self._get_border(self.position, direction)
+        old_direction = self._direction
+        try:
+            self.border = self._get_border(self.position, direction)
+        except ValueError as e:
+            print(e)
+            self._direction = old_direction
         
     def __repr__(self):
         return f"Connection point at tile position {self.position} with direction {self.direction}"

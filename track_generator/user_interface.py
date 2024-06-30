@@ -91,7 +91,6 @@ class UserInterface:
                 
     def _handle_mouse_press(self, position):
         mouse_x, mouse_y = position
-        
         if self.selected_tile:
             # Check if a connection point on the currently selected tile was clicked
             for cp_index, cp in enumerate(self.selected_tile.road_element.connection_points):
@@ -138,7 +137,7 @@ class UserInterface:
             mouse_x, mouse_y = position
             if isinstance(self.selected_point, ConnectionPoint):
                 position_on_tile = self._screen_position_to_tile_position((mouse_x, mouse_y), self.selected_tile)
-                self.selected_tile.road_element.update_connection_point(self.selected_point_index, position_on_tile, self.selected_point.direction)
+                self.selected_tile.road_element.update_connection_point(self.selected_point_index, position_on_tile)
             elif isinstance(self.selected_point, GuidePoint):
                 position_on_tile = self._screen_position_to_tile_position((mouse_x, mouse_y), self.selected_tile)
                 self.selected_tile.road_element.update_guide_point(self.selected_point_index, position_on_tile)
