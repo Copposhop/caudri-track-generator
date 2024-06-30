@@ -8,7 +8,7 @@ def main():
     track.add_tile((0, 1))
     
     track_gen = TrackGenerator(track)
-    track_gen.start()
+    track_gen.run()
     
 if __name__ == '__main__':
     main()

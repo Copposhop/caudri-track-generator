@@ -46,6 +46,7 @@ class UserInterface:
         
         track_screen_width = self.screen_width - 2 * config.ui_track_padding
         track_screen_height = self.screen_height - self.top_bar_height - 2 * config.ui_track_padding
+        self.track_rect = pygame.Rect(config.ui_track_padding, self.top_bar_height + config.ui_track_padding, track_screen_width, track_screen_height)
         self.track_screen = pygame.Surface((track_screen_width, track_screen_height))
     
     def _render_track(self) -> None:
@@ -86,9 +87,7 @@ class UserInterface:
     
     def _handle_mouse_wheel(self, event) -> None:
         mouse_pos = pygame.mouse.get_pos()
-        track_rect = self.track_screen.get_rect()
-
-    
-    
-        
-        
+        if self.track_rect.collidepoint(mouse_pos):
+            self.track_scale = self.track_scale * (1 + event.y * 0.1)
+            self.track_scale = max(config.track_min_scale, self.track_scale)
+            self.track_scale = min(config.track_max_scale, self.track_scale)

@@ -23,7 +23,7 @@ class TrackGenerator:
         self.screen = pygame.display.set_mode((config.screen_width, config.screen_height), pygame.RESIZABLE)
         pygame.display.set_caption('CAuDri-Challenge Track Generator')
         
-    def start(self) -> None:
+    def run(self) -> None:
         if not self.track:
             self.create_new_track()
         while self.running:
