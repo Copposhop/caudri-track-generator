@@ -6,12 +6,16 @@ from track_generator.user_interface.user_interface import UserInterface
 from track_generator.track.tile import Tile
 
 class TrackGenerator:
-    def __init__(self) -> None:
+    def __init__(self, track: Track = None) -> None:
         self._init_pygame()
         
         self.running = True
         
-        self.track = None
+        if track:
+            self.load_track(track)
+        else:
+            self.create_new_track()
+            
         self.user_interface = UserInterface(self.track)
              
     def _init_pygame(self) -> None:
@@ -28,11 +32,14 @@ class TrackGenerator:
         
     def create_new_track(self) -> None:
         self.track = Track()
-        self.user_interface = UserInterface(self.track)
         
-    def add_road_element(self, road_element, grid_position) -> None:
-        tile = Tile(grid_position, road_element)
-        self.track.add_tile(tile)
+    def load_track(self, track) -> None:
+        if not isinstance(track, Track):
+            raise ValueError("track must be an instance of Track")
+        self.track = track
+        
+    def add_tile(self, grid_position, road_element=None) -> None:
+        self.track.add_tile(grid_position, road_element)
                     
     def _update(self) -> None:
         self._handle_events()

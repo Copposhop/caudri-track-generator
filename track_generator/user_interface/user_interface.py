@@ -64,6 +64,8 @@ class UserInterface:
         self.track_position = [new_pos_x, new_pos_y]
 
     def _handle_keydown(self, event) -> None:
+        if event.key == pygame.K_ESCAPE:
+            pygame.quit()
         if event.key == pygame.K_UP:
             self._move_track(0, config.pan_speed)
         elif event.key == pygame.K_DOWN:
