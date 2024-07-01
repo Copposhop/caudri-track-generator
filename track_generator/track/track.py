@@ -5,6 +5,7 @@ from track_generator.track.tile import Tile
 
 
 class Track:
+
     def __init__(self):
         self.tiles = [] 
 
