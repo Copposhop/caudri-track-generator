@@ -1,6 +1,10 @@
 import pygame
+import os
 
 import track_generator.config as config
+
+# fonts folder in file directory
+font_file_path = os.path.join(os.path.dirname(__file__), "fonts", "Rajdhani-SemiBold.ttf")
 
 class UserInterface:
 
@@ -56,8 +60,15 @@ class UserInterface:
         
     def _render_top_bar(self) -> None:
         padding = config.ui_track_padding
-        rect = pygame.Rect(padding, 1, self.screen_width - 2 * padding, config.ui_top_bar_height)
-        pygame.draw.rect(self.screen, (220,100,0), rect, 2)     
+        top_bar_surface = pygame.Surface((self.screen_width - 2 * padding, config.ui_top_bar_height))
+        text = f"CAuDri-Challenge Track Generator"
+        font = pygame.font.Font(font_file_path, config.ui_top_bar_height // 2)
+        text_surface = font.render(text, True, (10,10,10))
+        text_rect = text_surface.get_rect(center=(top_bar_surface.get_width() // 2, top_bar_surface.get_height() // 2))
+        top_bar_surface.fill(config.color_background)
+        top_bar_surface.blit(text_surface, text_rect)
+        self.screen.blit(top_bar_surface, (padding, 0))
+        
         
     def _move_track(self, dx, dy):
         new_pos_x = self.track_position[0] + dx
@@ -80,10 +91,15 @@ class UserInterface:
         pass
     
     def _handle_mouse_release(self, event) -> None:
-        pass
+        if event.button == 1:
+            self.point_is_dragging = False
     
     def _handle_mouse_motion(self, event) -> None:
-        pass
+        # If the middle mouse button is pressed, move the track
+        if event.buttons[1]:
+            pygame.mouse.set_cursor(pygame.SYSTEM_CURSOR_HAND)
+            dx, dy = event.rel
+            self._move_track(dx, dy)
     
     def _handle_mouse_wheel(self, event) -> None:
         mouse_pos = pygame.mouse.get_pos()
