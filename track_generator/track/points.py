@@ -1,14 +1,13 @@
 import pygame
 
 import track_generator.config as config
-from operator import pos
-from _old.track_generator.road_elements import road_element
+from track_generator.exceptions import InvalidPositionError
 
 
 class TrackPoint:
 
-    def __init__(self, road_element, position, direction=(0, 0)):
-        self.road_element = road_element
+    def __init__(self, road_element, position=(0, 0), direction=(0, 0)):
+        self._road_element = road_element
         self.position = position
         self.direction = direction
         
@@ -27,6 +26,10 @@ class TrackPoint:
     @direction.setter
     def direction(self, direction):
         self._direction = pygame.Vector2(direction).normalize()
+        
+    def update(self, position, direction):
+        self.position = position
+        self.direction = direction
 
         
 class GuidePoint(TrackPoint):
@@ -45,24 +48,15 @@ class ConnectionPoint(TrackPoint):
         self.twin = None
         self._is_updated = False
         
+        super().__init__(road_element, position, direction)
         self.update(position, direction)
         
     def __repr__(self):
         return f"Connection point at tile position {self.position} with direction {self.direction}"
     
-    @property
-    def position(self) -> pygame.Vector2:
-        return self._position
-    
-    @property
-    def direction(self) -> pygame.Vector2:
-        return self._direction
-    
-    @position.setter
     def position(self, position):
         self.update(position, self.direction)
                 
-    @direction.setter
     def direction(self, direction):
         self.update(self.position, direction)
         
@@ -83,7 +77,7 @@ class ConnectionPoint(TrackPoint):
         direction = pygame.Vector2(direction).normalize()
         try:
             border = self._validate_border(position, direction)
-        except RuntimeError as error:
+        except InvalidPositionError as error:
             raise error
         else:
             self._position = position
@@ -100,5 +94,5 @@ class ConnectionPoint(TrackPoint):
         elif position.y == config.tile_size and direction.y > 0:
             return pygame.Vector2(0, 1)  # Bottom
         else:
-            raise RuntimeError("Connection point is not on the border of the tile or direction is invalid", position, direction)
+            raise InvalidPositionError(f"Connection point is not on the border of the tile, or direction is invalid", position, self)
     

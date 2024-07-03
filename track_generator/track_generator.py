@@ -5,8 +5,10 @@ from track_generator.track.track import Track
 from track_generator.user_interface.user_interface import UserInterface
 from track_generator.track.tile import Tile
 
+
 class TrackGenerator:
-    def __init__(self, track: Track = None) -> None:
+
+    def __init__(self, track: Track=None) -> None:
         self._init_pygame()
         
         self.running = True

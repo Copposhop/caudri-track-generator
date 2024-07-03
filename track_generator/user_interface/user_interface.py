@@ -2,6 +2,7 @@ import pygame
 import os
 
 import track_generator.config as config
+from track_generator.user_interface.track_overlay import TrackOverlay
 
 # fonts folder in file directory
 font_file_path = os.path.join(os.path.dirname(__file__), "fonts", "Rajdhani-SemiBold.ttf")
@@ -10,24 +11,17 @@ font_file_path = os.path.join(os.path.dirname(__file__), "fonts", "Rajdhani-Semi
 class UserInterface:
 
     def __init__(self, track):
-        self.screen = pygame.display.get_surface()
-        
         self.track = track
-        
-        self.top_bar_height = config.ui_top_bar_height
-        self.track_position = [10, 10]
-        self.track_scale = config.track_default_scale
+        self.screen = pygame.display.get_surface()
         
         self._update_layout()
         
-        self.selected_tile = None
-        self.selected_point = None
-        self.point_is_dragging = False
-        
+        self.track_overlay = TrackOverlay(self, self.track_screen, track)
+
     def render(self) -> None:
         self.screen.fill(config.color_background)
-        self._render_track()
         self._render_top_bar()
+        self._render_track_screen()
         
         pygame.display.flip()
         
@@ -49,15 +43,29 @@ class UserInterface:
         self.screen = pygame.display.get_surface()
         self.screen_width, self.screen_height = self.screen.get_size()
         
+        self.top_bar_height = config.ui_top_bar_height
+        
+        self.track_scale = config.track_default_scale
+        self.track_offset = config.track_default_offset
+        
+        # Surface to render the track on
         track_screen_width = self.screen_width - 2 * config.ui_track_padding
         track_screen_height = self.screen_height - self.top_bar_height - 2 * config.ui_track_padding
-        self.track_rect = pygame.Rect(config.ui_track_padding, self.top_bar_height + config.ui_track_padding, track_screen_width, track_screen_height)
+        self.track_screen_rect = pygame.Rect(config.ui_track_padding,
+                                      self.top_bar_height + config.ui_track_padding,
+                                      track_screen_width,
+                                      track_screen_height)
         self.track_screen = pygame.Surface((track_screen_width, track_screen_height))
     
-    def _render_track(self) -> None:
+    def _render_track_screen(self) -> None:
+        # Fill the track screen with the background color
         self.track_screen.fill(config.color_track_background)
-        self.track.render(self.track_screen, self.track_scale, self.track_position)   
-        self.screen.blit(self.track_screen, (config.ui_track_padding, self.top_bar_height + config.ui_track_padding))
+        # Render the track
+        self.track.render(self.track_screen, self.track_scale, self.track_offset) 
+        # Render the track overlay
+        self.track_overlay.render()
+        # Blit the track screen to the main screen  
+        self.screen.blit(self.track_screen, (config.ui_track_padding, self.top_bar_height + config.ui_track_padding))            
         
     def _render_top_bar(self) -> None:
         padding = config.ui_track_padding
@@ -70,41 +78,38 @@ class UserInterface:
         top_bar_surface.blit(text_surface, text_rect)
         self.screen.blit(top_bar_surface, (padding, 0))
         
+    def _screen_to_track_position(self, screen_position) -> tuple:
+        return (
+            (screen_position[0] - self.track_screen_rect.left),
+            (screen_position[1] - self.track_screen_rect.top)
+        )
+    
     def _move_track(self, dx, dy):
-        new_pos_x = self.track_position[0] + dx
-        new_pos_y = self.track_position[1] + dy
-        self.track_position = [new_pos_x, new_pos_y]
+        new_pos_x = self.track_offset[0] + dx
+        new_pos_y = self.track_offset[1] + dy
+        self.track_offset = [new_pos_x, new_pos_y]
 
     def _handle_keydown(self, event: pygame.event.Event) -> None:
         if event.key == pygame.K_ESCAPE:
             pygame.quit()
-        if event.key == pygame.K_UP:
-            self._move_track(0, config.pan_speed)
-        elif event.key == pygame.K_DOWN:
-            self._move_track(0, -config.pan_speed)
-        elif event.key == pygame.K_LEFT:
-            self._move_track(config.pan_speed, 0)
-        elif event.key == pygame.K_RIGHT:
-            self._move_track(-config.pan_speed, 0)
             
     def _handle_mouse_press(self, event) -> None:
-        pass
+        if self.track_screen_rect.collidepoint(event.pos):
+            self.track_overlay.handle_mouse_press(event, self._screen_to_track_position(event.pos))
     
     def _handle_mouse_release(self, event: pygame.event.Event) -> None:
-        if event.button == pygame.BUTTON_MIDDLE:
-            pygame.mouse.set_cursor(pygame.SYSTEM_CURSOR_ARROW)
+        self.track_overlay.handle_mouse_release()
     
     def _handle_mouse_motion(self, event: pygame.event.Event) -> None:
-        # If the middle mouse button is pressed, move the track
-        if event.buttons[1]:
-            if self.track_rect.collidepoint(event.pos):
-                pygame.mouse.set_cursor(pygame.SYSTEM_CURSOR_HAND)
+        # Move the track if the middle mouse button is pressed
+        if self.track_screen_rect.collidepoint(event.pos):
+            if event.buttons[1]:
                 dx, dy = event.rel
                 self._move_track(dx, dy)
-    
+            else:
+                self.track_overlay.handle_mouse_motion(self._screen_to_track_position(event.pos))
+
     def _handle_mouse_wheel(self, event: pygame.event.Event) -> None:
         mouse_pos = pygame.mouse.get_pos()
-        if self.track_rect.collidepoint(mouse_pos):
-            self.track_scale = self.track_scale * (1 + event.y * 0.1)
-            self.track_scale = max(config.track_min_scale, self.track_scale)
-            self.track_scale = min(config.track_max_scale, self.track_scale)
+        if self.track_screen_rect.collidepoint(mouse_pos):
+            self.track_overlay.handle_mouse_wheel(event)
