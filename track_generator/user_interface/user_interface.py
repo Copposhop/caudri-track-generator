@@ -98,7 +98,7 @@ class UserInterface:
             self.track_overlay.handle_mouse_press(event, self._screen_to_track_position(event.pos))
     
     def _handle_mouse_release(self, event: pygame.event.Event) -> None:
-        self.track_overlay.handle_mouse_release()
+        self.track_overlay.handle_mouse_release(event, self._screen_to_track_position(event.pos))
     
     def _handle_mouse_motion(self, event: pygame.event.Event) -> None:
         # Move the track if the middle mouse button is pressed
