@@ -3,6 +3,7 @@ import os
 
 import track_generator.config as config
 from track_generator.user_interface.track_overlay import TrackOverlay
+from track_generator.exceptions import InvalidTrackError
 
 # fonts folder in file directory
 font_file_path = os.path.join(os.path.dirname(__file__), "fonts", "Rajdhani-SemiBold.ttf")
@@ -13,12 +14,22 @@ class UserInterface:
     def __init__(self, track):
         self.track = track
         self.screen = pygame.display.get_surface()
+        self.clock = pygame.time.Clock()
+                
+        self.track_screen =  None
+        self.track_overlay = TrackOverlay(self, self.track_screen, track)
+        self.track_scale = config.track_default_scale
+        self.track_offset = config.track_default_offset
+        
+        self._fps_counter = 0
+        self._fps_sum = 0
+        self._fps = 0
         
         self._update_layout()
-        
-        self.track_overlay = TrackOverlay(self, self.track_screen, track)
+
 
     def render(self) -> None:
+        self.clock.tick()
         self.screen.fill(config.color_background)
         self._render_top_bar()
         self._render_track_screen()
@@ -26,27 +37,30 @@ class UserInterface:
         pygame.display.flip()
         
     def handle_user_inputs(self, event) -> None:
-        if event.type == pygame.KEYDOWN:
-            self._handle_keydown(event)
-        elif event.type == pygame.MOUSEBUTTONDOWN:
-            self._handle_mouse_press(event)
-        elif event.type == pygame.MOUSEBUTTONUP:
-            self._handle_mouse_release(event)
-        elif event.type == pygame.MOUSEMOTION:
-            self._handle_mouse_motion(event)
-        elif event.type == pygame.MOUSEWHEEL:
-            self._handle_mouse_wheel(event)
-        elif event.type == pygame.VIDEORESIZE:
-            self._update_layout()
+        try:
+            if event.type == pygame.KEYDOWN:
+                self._handle_keydown(event)
+            elif event.type == pygame.MOUSEBUTTONDOWN:
+                self._handle_mouse_press(event)
+            elif event.type == pygame.MOUSEBUTTONUP:
+                self._handle_mouse_release(event)
+            elif event.type == pygame.MOUSEMOTION:
+                self._handle_mouse_motion(event)
+            elif event.type == pygame.MOUSEWHEEL:
+                self._handle_mouse_wheel(event)
+            elif event.type == pygame.VIDEORESIZE:
+                self._update_layout()
+        except InvalidTrackError as e:
+            self._handle_track_error(e)
+            
+    def _handle_track_error(self, error: Exception) -> None:            
+        print(f"Invalid track, {error}")
             
     def _update_layout(self):
         self.screen = pygame.display.get_surface()
         self.screen_width, self.screen_height = self.screen.get_size()
         
         self.top_bar_height = config.ui_top_bar_height
-        
-        self.track_scale = config.track_default_scale
-        self.track_offset = config.track_default_offset
         
         # Surface to render the track on
         track_screen_width = self.screen_width - 2 * config.ui_track_padding
@@ -56,6 +70,8 @@ class UserInterface:
                                       track_screen_width,
                                       track_screen_height)
         self.track_screen = pygame.Surface((track_screen_width, track_screen_height))
+        self.track_overlay.set_screen(self.track_screen)
+        
     
     def _render_track_screen(self) -> None:
         # Fill the track screen with the background color
@@ -76,7 +92,21 @@ class UserInterface:
         text_rect = text_surface.get_rect(center=(top_bar_surface.get_width() // 2, top_bar_surface.get_height() // 2))
         top_bar_surface.fill(config.color_background)
         top_bar_surface.blit(text_surface, text_rect)
+        top_bar_surface.blit(self._render_fps(), (self.screen_width - padding - 100, 0))
         self.screen.blit(top_bar_surface, (padding, 0))
+        
+    def _render_fps(self) -> pygame.Surface:
+        # Average FPS over the last 50 frames
+        self._fps_counter += 1
+        self._fps_sum += self.clock.get_fps()
+        if self._fps_counter == 50:
+            self._fps_counter = 0
+            self._fps = self._fps_sum / 50
+            self._fps_sum = 0
+
+        font = pygame.font.Font(font_file_path, config.ui_top_bar_height // 5)
+        text_surface = font.render(f"FPS: {self._fps:.0f}", True, (200, 200, 200))
+        return text_surface
         
     def _screen_to_track_position(self, screen_position) -> tuple:
         return (
@@ -106,8 +136,7 @@ class UserInterface:
             if event.buttons[1]:
                 dx, dy = event.rel
                 self._move_track(dx, dy)
-            else:
-                self.track_overlay.handle_mouse_motion(self._screen_to_track_position(event.pos))
+        self.track_overlay.handle_mouse_motion(self._screen_to_track_position(event.pos))
 
     def _handle_mouse_wheel(self, event: pygame.event.Event) -> None:
         mouse_pos = pygame.mouse.get_pos()

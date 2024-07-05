@@ -1,5 +1,5 @@
 tile_size = 2000  # Tile size in millimeters
-screen_width, screen_height = 1280, 720  # Initial screen resolution 
+screen_width, screen_height = 800, 600  # Initial screen resolution 
 
 # Colors
 color_background = (150, 150, 150)
@@ -31,7 +31,7 @@ tile_highlight_border_width = 1         # px
 tile_selection_border_width = 2         # px
 
 point_visual_radius = 50                # mm
-point_selection_radius = 100            # mm
+point_selection_radius = 200            # mm
 
 direction_indicator_length = 200        # mm
 direction_indicator_width = 20          # mm

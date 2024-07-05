@@ -15,7 +15,7 @@ class StraightRoad(RoadElement):
         super().__init__()
         
         if guide_point:
-            self.update_guide_point(guide_point.position, guide_point.direction)
+            self.update_guide_point(0, guide_point.position, guide_point.direction)
         elif len(connection_points) == 2:
             self.connection_points = connection_points
         else:
@@ -27,11 +27,19 @@ class StraightRoad(RoadElement):
     def render(self, surface):
         pygame.draw.line(surface, config.color_lane_marking, self.connection_points[0].position, self.connection_points[1].position, 40)
 
-    def update_guide_point(self, position, direction, index=0):
+    def update_guide_point(self, index, position, direction=None):
         # Straight road only has one guide point
         if index != 0:
-            return
-
+            raise ValueError("Straight road only has one guide point")
+        if direction is None:
+            direction = self.road_direction
+        position = self._restrict_position_to_selected_tile(position)
+        self._update_guide_point(position, direction)
+        
+    def update_connection_point(self, index, position, direction=None):
+        self._update_connection_point(index, position, direction)
+        
+    def _update_guide_point(self, position, direction):
         new_connection_points = self._border_intersection_from_point(GuidePoint(self, position, direction))
         
         if len(self.guide_points) == 0:
@@ -42,35 +50,89 @@ class StraightRoad(RoadElement):
             self.connection_points[0].update(new_connection_points[0].position, new_connection_points[0].direction)
             self.connection_points[1].update(new_connection_points[1].position, new_connection_points[1].direction) 
         self.road_direction = direction
+
+    def _update_connection_point(self, index, position, direction):
+        position = pygame.Vector2(position)
+        # Move the guidepoint to the new centerline while keeping the ratio between the connection points
+        center_line_length = self.connection_points[0].position.distance_to(self.connection_points[1].position)
+        distance_to_guide_point = self.connection_points[0].position.distance_to(self.guide_points[0].position)
+        guide_point_ratio = distance_to_guide_point / center_line_length
+        guide_point_ratio = max(0.1, min(0.9, guide_point_ratio))
+        
+        if direction is None:
+            # Fix the position of the opposite connection point 
+            unchanged_point = self.connection_points[1 - index]
+            # Calculate new position on the border if the point lies outside the tile
+            position = self._restrict_position_to_selected_tile(position, unchanged_point)
+            # New road direction will be the direction from the unchanged point to the new point
+            direction = pygame.Vector2(position - unchanged_point.position).normalize()
+            new_point = self._border_intersection_from_point(GuidePoint(self, unchanged_point.position, direction))[1]
+            self.connection_points[index].update(new_point.position, new_point.direction)
+            self.connection_points[1 - index].direction = -new_point.direction
             
-    def update_connection_point(self, position, direction, index):
-        self.connection_points[index].update(position, direction)
+        else:
+            direction = pygame.Vector2(direction).normalize()
+            position = self._restrict_position_to_selected_tile(position, self.connection_points[1 - index])
+            self.connection_points[index].update(position, direction)
+            new_point = self._border_intersection_from_point(GuidePoint(self, position, -direction))[1]
+            self.connection_points[1 - index].update(new_point.position, new_point.direction)
+            
+        self.road_direction = self.connection_points[1].direction
+        guide_point_position = self.connection_points[0].position + guide_point_ratio * (self.connection_points[1].position - self.connection_points[0].position)
+        self.guide_points[0].update(guide_point_position, self.road_direction)        
+    
+    # Restrict the position of a point to the tile borders
+    # A line is drawn from position to the guide point
+    # The intersection of the line with the tile borders determines the new position of the point
+    def _restrict_position_to_selected_tile(self, position, guide_point=None) -> pygame.Vector2:
+        # If the position is inside the tile, return
+        position = pygame.Vector2(position)
+        if pygame.Rect(0, 0, config.tile_size, config.tile_size).collidepoint(position):
+            return position
+        if guide_point is None:
+            # Point in the center of the tile
+            guide_position = pygame.Vector2(config.tile_size / 2, config.tile_size / 2)
+        else:
+            guide_position = guide_point.position
+        direction = (position - guide_position).normalize()
+        return self._border_intersection_from_point(GuidePoint(None, guide_position, direction))[1].position      
         
     def _distance_from_point_to_borders(self, point: TrackPoint, border_rect: pygame.Rect):
-        distance_right = (border_rect.right - point.position.x) / point.direction.x if point.direction.x != 0 else math.inf
-        distance_top = (border_rect.top - point.position.y) / point.direction.y if point.direction.y != 0 else math.inf
-        distance_left = (border_rect.left - point.position.x) / point.direction.x if point.direction.x != 0 else math.inf
-        distance_bottom = (border_rect.bottom - point.position.y) / point.direction.y if point.direction.y != 0 else math.inf
+        # Normalize the direction vector
+        direction = point.direction.normalize()
+        distance_right = (border_rect.right - point.position.x) / direction.x if direction.x != 0 else math.inf
+        distance_top = (border_rect.top - point.position.y) / direction.y if direction.y != 0 else math.inf
+        distance_left = (border_rect.left - point.position.x) / direction.x if direction.x != 0 else math.inf
+        distance_bottom = (border_rect.bottom - point.position.y) / direction.y if direction.y != 0 else math.inf
         return distance_right, distance_top, distance_left, distance_bottom
         
-    def _border_intersection_from_point(self, point: TrackPoint):
+    def _border_intersection_from_point(self, point: TrackPoint) -> tuple[ConnectionPoint, ConnectionPoint]:
         position = point.position
         direction = point.direction
         distances = self._distance_from_point_to_borders(point, pygame.Rect(0, 0, config.tile_size, config.tile_size))
         
-        # If the point lies within the tile, the first intersection has the smallest positive distance
-        if pygame.Rect(0, 0, config.tile_size, config.tile_size).collidepoint(position):
+        # If the point lies within the tile, point 1 has the smallest positive distance
+        # Guide point 0 lies on the border in the opposite direction
+        if pygame.Rect(0, 0, config.tile_size + 1, config.tile_size + 1).collidepoint(position):
             distance_front = min(d for d in distances if d > 0)
             distance_back = -min(-d for d in distances if d <= 0)
-        else:
+        # If the point is at the height or width of the tile, point 0 is the one with the smallest distance
+        elif 0 <= point.position.x <= config.tile_size or 0 <= point.position.y <= config.tile_size:
             distance_back = min(d for d in distances if d > 0)
             distance_front = min(d for d in distances if d >= 0 and d != distance_back)
-
-        try: 
-            point_front = ConnectionPoint(None, (position.x + distance_front * direction.x, position.y + distance_front * direction.y), direction)
-            point_back = ConnectionPoint(None, (position.x + distance_back * direction.x, position.y + distance_back * direction.y), (-direction.x, -direction.y))
-        except InvalidPositionError:
-            raise InvalidTrackError("Could not find an intersection with any of the tile borders", point)
+        # Ignore the point with the smallest distance since it is not at the height or width of the tile
+        else:
+            distances = [d for d in distances if d != min(distances)]
+            distance_back = min(d for d in distances if d > 0)
+            distance_front = min(d for d in distances if d >= 0 and d != distance_back)
         
-        return point_front, point_back
+        # An InvalidPositionError is raised if there is no intersection with the tile
+        try: 
+            point_front = ConnectionPoint(self, (position.x + distance_front * direction.x, position.y + distance_front * direction.y), direction)
+            point_back = ConnectionPoint(self, (position.x + distance_back * direction.x, position.y + distance_back * direction.y), -direction)
+        except InvalidPositionError as e:
+            string = f"Could not find an intersection with any of the tile borders:", e
+            raise InvalidTrackError(string, point)
+        
+        return point_back, point_front
     

@@ -4,6 +4,8 @@ import pygame.gfxdraw
 import track_generator.config as config
 
 from track_generator.track.track import Track
+from track_generator.track.points import ConnectionPoint, GuidePoint
+from pip._vendor.pygments.lexer import include
 
 
 class TrackOverlay:
@@ -12,12 +14,11 @@ class TrackOverlay:
         self.ui = ui
         self.screen = screen
         self.track = track
-        
-        self.track_offset = ui.track_offset
 
         self.higlighted_tile = None
         self.selected_tile = None
         self.selected_point = None
+        self.selected_point_index = None
         self.point_is_dragging = False
         
     def render(self):
@@ -29,9 +30,26 @@ class TrackOverlay:
             tile_rect = self._get_tile_rect_on_screen(self.selected_tile)
             pygame.draw.rect(self.screen, config.color_tile_selection, tile_rect, config.tile_selection_border_width)
             self._render_tile_overlay(self.selected_tile)
+            
+    def set_screen(self, screen):
+        self.screen = screen        
 
     def handle_mouse_press(self, event, position):
         if event.button == pygame.BUTTON_LEFT:
+            # Check if a point was clicked and select it
+            if self.selected_tile and self.selected_tile.road_element:
+                cp = enumerate(self.selected_tile.road_element.connection_points)
+                gp = enumerate(self.selected_tile.road_element.guide_points)
+                for points in [cp, gp]:
+                    for index, point in points:
+                        screen_position = self._tile_position_to_screen_position(point.position, self.selected_tile)
+                        scaled_radius = config.point_selection_radius * self.ui.track_scale
+                        if pygame.Vector2(screen_position).distance_to(position) < scaled_radius:
+                            self.selected_point = point
+                            self.selected_point_index = index
+                            self.point_is_dragging = True
+                            return
+            
             # Click on a tile to select/deselect it
             for tile in self.track.tiles:
                 if self._get_tile_rect_on_screen(tile).collidepoint(position):
@@ -42,15 +60,25 @@ class TrackOverlay:
                 self.selected_tile = None
         
     def handle_mouse_release(self, event, position):
-        pass
+        if event.button == pygame.BUTTON_LEFT:
+            self.point_is_dragging = False
+            self.selected_point = None
         
     def handle_mouse_motion(self, position):
-        # Update the tile the mouse is hovering over
-        self.higlighted_tile = None
-        for tile in self.track.tiles:
-            if self._get_tile_rect_on_screen(tile).collidepoint(position):
-                self.higlighted_tile = tile
-                break
+        # Update the position of the selected point if it is being dragged
+        if self.point_is_dragging:
+            tile_position = self._screen_position_to_tile_position(position, self.selected_tile)
+            if isinstance(self.selected_point, GuidePoint):
+                self.selected_tile.road_element.update_guide_point(self.selected_point_index, tile_position)
+            elif isinstance(self.selected_point, ConnectionPoint):
+                self.selected_tile.road_element.update_connection_point(self.selected_point_index, tile_position)
+        else:
+            # Update the tile the mouse is hovering over
+            self.higlighted_tile = None
+            for tile in self.track.tiles:
+                if self._get_tile_rect_on_screen(tile).collidepoint(position):
+                    self.higlighted_tile = tile
+                    break
         
     def handle_mouse_wheel(self, event):
         self.ui.track_scale = self.ui.track_scale * (1 + event.y * 0.1)
@@ -65,6 +93,9 @@ class TrackOverlay:
             for gp in tile.road_element.guide_points:
                 self._render_point(gp, tile, config.color_guide_point)
                 self._render_direction_indicator(gp, tile, config.color_guide_point)
+            if self.selected_point:
+                self._render_point(self.selected_point, tile, config.color_selected_point)
+                self._render_direction_indicator(self.selected_point, tile, config.color_selected_point)
             
     def _render_point(self, point, tile, color):
         screen_position = self._tile_position_to_screen_position(point.position, tile)
@@ -91,13 +122,13 @@ class TrackOverlay:
             pygame.draw.line(self.screen, color, screen_position + direction, screen_position + direction + arrowhead_direction_mirrored, scaled_width)
             
     def _tile_position_to_screen_position(self, tile_position, tile):
-        screen_x = self.track_offset[0] + self.ui.track_scale * (tile.grid_position[0] * config.tile_size + tile_position[0])
-        screen_y = self.track_offset[1] + self.ui.track_scale * (tile.grid_position[1] * config.tile_size + tile_position[1])
+        screen_x = self.ui.track_offset[0] + self.ui.track_scale * (tile.grid_position[0] * config.tile_size + tile_position[0])
+        screen_y = self.ui.track_offset[1] + self.ui.track_scale * (tile.grid_position[1] * config.tile_size + tile_position[1])
         return pygame.Vector2(screen_x, screen_y)
     
     def _screen_position_to_tile_position(self, screen_position, tile):
-        tile_x = (screen_position[0] - self.track_offset[0]) / self.ui.track_scale - tile.grid_position[0] * config.tile_size
-        tile_y = (screen_position[1] - self.track_offset[1]) / self.ui.track_scale - tile.grid_position[1] * config.tile_size
+        tile_x = (screen_position[0] - self.ui.track_offset[0]) / self.ui.track_scale - tile.grid_position[0] * config.tile_size
+        tile_y = (screen_position[1] - self.ui.track_offset[1]) / self.ui.track_scale - tile.grid_position[1] * config.tile_size
         return pygame.Vector2(tile_x, tile_y)
     
     def _get_tile_rect_on_screen(self, tile):
