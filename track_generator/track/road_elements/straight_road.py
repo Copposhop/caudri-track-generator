@@ -28,18 +28,17 @@ class StraightRoad(RoadElement):
         pygame.draw.line(surface, config.color_lane_marking, self.connection_points[0].position, self.connection_points[1].position, 40)
 
     def update_guide_point(self, index, position, direction=None):
-        # Straight road only has one guide point
         if index != 0:
             raise ValueError("Straight road only has one guide point")
-        if direction is None:
-            direction = self.road_direction
-        position = self._restrict_position_to_selected_tile(position)
         self._update_guide_point(position, direction)
         
     def update_connection_point(self, index, position, direction=None):
         self._update_connection_point(index, position, direction)
         
     def _update_guide_point(self, position, direction):
+        if direction is None:
+            direction = self.road_direction
+        position = self._restrict_position_to_selected_tile(position)
         new_connection_points = self._border_intersection_from_point(GuidePoint(self, position, direction))
         
         if len(self.guide_points) == 0:
@@ -87,7 +86,7 @@ class StraightRoad(RoadElement):
     def _restrict_position_to_selected_tile(self, position, guide_point=None) -> pygame.Vector2:
         # If the position is inside the tile, return
         position = pygame.Vector2(position)
-        if pygame.Rect(0, 0, config.tile_size, config.tile_size).collidepoint(position):
+        if pygame.Rect(0, 0, config.tile_size + 1, config.tile_size + 1).collidepoint(position):
             return position
         if guide_point is None:
             # Point in the center of the tile
