@@ -88,8 +88,12 @@ class TrackOverlay:
     def _render_tile_overlay(self, tile):
         if tile.road_element:
             for cp in tile.road_element.connection_points:
-                self._render_point(cp, tile, config.color_connection_point)
-                self._render_direction_indicator(cp, tile, config.color_connection_point)
+                if cp.twin:
+                    color = config.color_connection_point_twin
+                else:
+                    color = config.color_connection_point
+                self._render_point(cp, tile, color)
+                self._render_direction_indicator(cp, tile, color)
             for gp in tile.road_element.guide_points:
                 self._render_point(gp, tile, config.color_guide_point)
                 self._render_direction_indicator(gp, tile, config.color_guide_point)
