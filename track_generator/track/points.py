@@ -1,7 +1,7 @@
 import pygame
 
 import track_generator.config as config
-from track_generator.exceptions import InvalidPositionError
+from track_generator.exceptions import InvalidPositionError, InvalidTrackError
 
 
 class TrackPoint:
@@ -60,11 +60,11 @@ class ConnectionPoint(TrackPoint):
         self.update(self.position, direction)
 
     def update(self, position, direction):
-        self._update(position, direction)
         self._was_visited = True
         if self.twin:
-            mirrored_position = self.get_mirrored_position()
+            mirrored_position = self.get_mirrored_position(position)
             self.twin.handle_update_from_twin(mirrored_position, -direction)
+        self._update(position, direction)
         self._was_visited = False
 
     def set_twin(self, twin):
@@ -73,6 +73,8 @@ class ConnectionPoint(TrackPoint):
         position = self.twin.get_mirrored_position()
         self._was_visited = True
         self._road_element.update_connection_point(self._get_index(), position, -twin.direction)
+        self.fix_to_border()
+        self.twin.fix_to_border()
         self._was_visited = False
 
     def handle_update_from_twin(self, position, direction):
@@ -92,11 +94,13 @@ class ConnectionPoint(TrackPoint):
     def get_border(self):
         return self._border
 
-    def get_mirrored_position(self):
+    def get_mirrored_position(self, position: pygame.Vector2=None):
+        if position is None:
+            position = self.position
         if self._border.x != 0:
-            return pygame.Vector2(config.tile_size - self.position.x, self.position.y)
+            return pygame.Vector2(config.tile_size - position.x, position.y)
         elif self._border.y != 0:
-            return pygame.Vector2(self.position.x, config.tile_size - self.position.y)
+            return pygame.Vector2(position.x, config.tile_size - position.y)
 
     def _get_index(self):
         return self._road_element.connection_points.index(self)
@@ -104,16 +108,12 @@ class ConnectionPoint(TrackPoint):
     def _update(self, position, direction):
         position = pygame.Vector2(round(position[0]), round(position[1]))
         direction = pygame.Vector2(direction).normalize()
-        try:
-            border = self._validate_border(position, direction)
-            if self.is_fixed_to_border() and border != self._border:
-                raise InvalidPositionError(f"Connection point is fixed to border {self.get_border()}, but new border is {border}", position, self)
-        except InvalidPositionError as error:
-            raise error
-        else:
-            self._position = position
-            self._direction = direction
-            self._border = border
+        border = self._validate_border(position, direction)
+        if self.is_fixed_to_border() and border != self._border:
+            raise InvalidPositionError(f"Connection point is fixed to border {self.get_border()}, but new border is {border}", position, self)
+        self._position = position
+        self._direction = direction
+        self._border = border
 
     def _validate_border(self, position, direction) -> pygame.Vector2:
         if position.x == 0 and direction.x < 0:

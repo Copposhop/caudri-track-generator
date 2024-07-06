@@ -19,7 +19,7 @@ class StraightRoad(RoadElement):
         elif len(connection_points) == 2:
             self.connection_points = connection_points
         else:
-            self.update_guide_point((config.tile_size / 2, config.tile_size / 2), (1, 0))
+            self.update_guide_point(0, (config.tile_size / 2, config.tile_size / 2), (1, 0))
         
     def __repr__(self) -> str:
         return f"Straight Road with guide points {self.guide_points} and connection points {self.connection_points}"
@@ -45,9 +45,9 @@ class StraightRoad(RoadElement):
             self.guide_points.append(GuidePoint(self, position, direction))
             self.connection_points = new_connection_points
         else:
-            self.guide_points[0].update(position, direction)
             self.connection_points[0].update(new_connection_points[0].position, new_connection_points[0].direction)
-            self.connection_points[1].update(new_connection_points[1].position, new_connection_points[1].direction) 
+            self.connection_points[1].update(new_connection_points[1].position, new_connection_points[1].direction)
+            self.guide_points[0].update(position, direction) 
         self.road_direction = direction
 
     def _update_connection_point(self, index, position, direction):
@@ -58,27 +58,30 @@ class StraightRoad(RoadElement):
         guide_point_ratio = distance_to_guide_point / center_line_length
         guide_point_ratio = max(0.1, min(0.9, guide_point_ratio))
         
-        if direction is None:
-            # Fix the position of the opposite connection point 
-            unchanged_point = self.connection_points[1 - index]
-            # Calculate new position on the border if the point lies outside the tile
-            position = self._restrict_position_to_selected_tile(position, unchanged_point)
-            # New road direction will be the direction from the unchanged point to the new point
-            direction = pygame.Vector2(position - unchanged_point.position).normalize()
-            new_point = self._border_intersection_from_point(GuidePoint(self, unchanged_point.position, direction))[1]
-            self.connection_points[index].update(new_point.position, new_point.direction)
-            self.connection_points[1 - index].direction = -new_point.direction
+        try:
+            if direction is None:
+                # Fix the position of the opposite connection point 
+                unchanged_point = self.connection_points[1 - index]
+                # Calculate new position on the border if the point lies outside the tile
+                position = self._restrict_position_to_selected_tile(position, unchanged_point)
+                # New road direction will be the direction from the unchanged point to the new point
+                direction = pygame.Vector2(position - unchanged_point.position).normalize()
+                new_point = self._border_intersection_from_point(GuidePoint(self, unchanged_point.position, direction))[1]
+                self.connection_points[1 - index].direction = -new_point.direction
+                self.connection_points[index].update(new_point.position, new_point.direction)
+                
+            else:
+                direction = pygame.Vector2(direction).normalize()
+                position = self._restrict_position_to_selected_tile(position, self.connection_points[1 - index])
+                new_point = self._border_intersection_from_point(GuidePoint(self, position, -direction))[1]
+                self.connection_points[1 - index].update(new_point.position, new_point.direction)#
+                self.connection_points[index].update(position, direction)
             
-        else:
-            direction = pygame.Vector2(direction).normalize()
-            position = self._restrict_position_to_selected_tile(position, self.connection_points[1 - index])
-            self.connection_points[index].update(position, direction)
-            new_point = self._border_intersection_from_point(GuidePoint(self, position, -direction))[1]
-            self.connection_points[1 - index].update(new_point.position, new_point.direction)
-            
-        self.road_direction = self.connection_points[1].direction
-        guide_point_position = self.connection_points[0].position + guide_point_ratio * (self.connection_points[1].position - self.connection_points[0].position)
-        self.guide_points[0].update(guide_point_position, self.road_direction)        
+            self.road_direction = self.connection_points[1].direction
+            guide_point_position = self.connection_points[0].position + guide_point_ratio * (self.connection_points[1].position - self.connection_points[0].position)
+            self.guide_points[0].update(guide_point_position, self.road_direction)
+        except InvalidPositionError as e:
+            raise InvalidTrackError(e, self.guide_points[0])
     
     # Restrict the position of a point to the tile borders
     # A line is drawn from position to the guide point
