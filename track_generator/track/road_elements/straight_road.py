@@ -1,12 +1,15 @@
 import pygame
-import pygame.gfxdraw  
+import pygame.gfxdraw
 import math
+import numpy
 
 import track_generator.config as config
+import track_generator.regulations as regulations
 
 from track_generator.track.road_element import RoadElement
 from track_generator.track.points import TrackPoint, GuidePoint, ConnectionPoint
 from track_generator.exceptions import InvalidPositionError, InvalidTrackError
+from pip._vendor.rich import color
 
 
 class StraightRoad(RoadElement):
@@ -25,7 +28,14 @@ class StraightRoad(RoadElement):
         return f"Straight Road with guide points {self.guide_points} and connection points {self.connection_points}"
     
     def render(self, surface):
-        pygame.draw.line(surface, config.color_lane_marking, self.connection_points[0].position, self.connection_points[1].position, 40)
+        pos_a = self.connection_points[0].position
+        pos_b = self.connection_points[1].position
+        color = config.color_lane_marking
+        line_width = regulations.lane_marking_line_width
+        lane_width = regulations.lane_width
+        pygame.draw.line(surface, color, pos_a, pos_b, 2 * (lane_width + line_width))
+        pygame.draw.line(surface, config.color_road, pos_a, pos_b, 2 * lane_width)
+        self._draw_line_dashed(surface, color, pos_a, pos_b, line_width, regulations.lane_marking_dash_length)
 
     def update_guide_point(self, index, position, direction=None):
         if index != 0:
@@ -74,7 +84,7 @@ class StraightRoad(RoadElement):
                 direction = pygame.Vector2(direction).normalize()
                 position = self._restrict_position_to_selected_tile(position, self.connection_points[1 - index])
                 new_point = self._border_intersection_from_point(GuidePoint(self, position, -direction))[1]
-                self.connection_points[1 - index].update(new_point.position, new_point.direction)#
+                self.connection_points[1 - index].update(new_point.position, new_point.direction)  #
                 self.connection_points[index].update(position, direction)
             
             self.road_direction = self.connection_points[1].direction
@@ -137,4 +147,21 @@ class StraightRoad(RoadElement):
             raise InvalidTrackError(string, point)
         
         return point_back, point_front
+    
+    def _draw_line_dashed(self, surface, color, start_pos, end_pos, width = 1, dash_length = 10, exclude_corners = True):
+        # convert tuples to numpy arrays
+        start_pos = numpy.array(start_pos)
+        end_pos   = numpy.array(end_pos)
+
+        # get euclidian distance between start_pos and end_pos
+        length = numpy.linalg.norm(end_pos - start_pos)
+
+        # get amount of pieces that line will be split up in (half of it are amount of dashes)
+        dash_amount = int(length / dash_length)
+
+        # x-y-value-pairs of where dashes start (and on next, will end)
+        dash_knots = numpy.array([numpy.linspace(start_pos[i], end_pos[i], dash_amount) for i in range(2)]).transpose()
+
+        return [pygame.draw.line(surface, color, tuple(dash_knots[n]), tuple(dash_knots[n+1]), width)
+                for n in range(int(exclude_corners), dash_amount - int(exclude_corners) - 1, 2)]
     
