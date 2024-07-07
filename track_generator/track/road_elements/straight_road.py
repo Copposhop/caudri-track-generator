@@ -35,6 +35,7 @@ class StraightRoad(RoadElement):
         lane_width = regulations.lane_width
         pygame.draw.line(surface, color, pos_a, pos_b, 2 * (lane_width + line_width))
         pygame.draw.line(surface, config.color_road, pos_a, pos_b, 2 * lane_width)
+        # pygame.draw.line(surface, color, pos_a, pos_b, line_width)
         self._draw_line_dashed(surface, color, pos_a, pos_b, line_width, regulations.lane_marking_dash_length)
 
     def update_guide_point(self, index, position, direction=None):
@@ -161,7 +162,8 @@ class StraightRoad(RoadElement):
 
         # x-y-value-pairs of where dashes start (and on next, will end)
         dash_knots = numpy.array([numpy.linspace(start_pos[i], end_pos[i], dash_amount) for i in range(2)]).transpose()
+        
+        for n in range(int(exclude_corners), dash_amount - int(exclude_corners) - 1, 2):
+            pygame.draw.line(surface, color, tuple(dash_knots[n]), tuple(dash_knots[n+1]), width)
 
-        return [pygame.draw.line(surface, color, tuple(dash_knots[n]), tuple(dash_knots[n+1]), width)
-                for n in range(int(exclude_corners), dash_amount - int(exclude_corners) - 1, 2)]
     
